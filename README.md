@@ -1,58 +1,34 @@
 # esp32_p1meter
-Software for the ESP32 (DoIT ESP DEVKIT v1/NodeMcu 32s etc.) that decodes and sends P1 smart meter (DSMR) data to a MQTT broker, with the possibility for Over The Air (OTA) firmware updates.
+Software for the ESP32 (uPesy ESP32 Wroom Devkit) that decodes and sends P1 smart meter (DSMR) data to a MQTT broker, with the possibility for Over The Air (OTA) firmware updates.
 
 ## About this fork
-This fork was based on a ESP8266 and I only had a ESP32 laying around so I'm trying to make this work on my ESP32 DoIT board.
+This fork is based on work from [bartwo](https://github.com/bartwo/esp32_p1meter).
 
-The original project of [fliphess](https://github.com/fliphess/esp8266_p1meter) has issues with DSMR 5.0 meters, which send telegrams every 1 second at a high 115200 baud rate. 
-This causes the used SoftwareSerial to struggle to keep up and thus only receives corrupted messages. 
-
-The project of [daniel-jong](https://github.com/daniel-jong/esp8266_p1meter) switches to using the main hardware serial port (RX) for communication with the p1 meter and is tested on the `Landys and Gyr E360` smartmeter (DSMR 5.0).
-
-Then I noticed the project of [WhoSayIn](https://github.com/WhoSayIn/esp8266_dsmr2mqtt), that takes a much more minimalistic approach, which I liked. However, I discovered this project was also designed for the DSMR 4.0 meters.
-
-With this fork, I want to accomplish the following:
-- Combine the projects mentioned above in a minimalistic setup for the newer DSMR 5.0 smart meters.
-- Separate code in multiple files for readability.
-- Add solar panel meter: read out delivered energy.
-- Easy to read and add new readouts from a telegram. Used a struct to accomplish this.
-- Generate the full MQTT topics based on the array of telegram decode structs.
-- Easy to debug the software and able to compile without the debug for a more compact compiled code base. 
-
-I noticed that the other repositories use SoftwareSerial library to readout the P1 port but the ESP32 has multiple RX and TX port to read en write serial streams. This made it easy to debug the code and have the full speed of the hardware serial. Also the ESP32 is a bit faster so it doesn't crash as fast as a ESP8266 when you want to readout every second.
+How is this fork different from base:
+- Make MQTT sensors configured using JSON map with all available data and get MQTT sensors created dynamically.
+- Add email sending for debugging purposes.
+- Added support for string readings not just numbers.
+- Even more refactored code for readability.
 
 ## Setup
 This setup requires:
-- An ESP32 (DoIT DEVKIT v1 has been tested)
-- Small breadboard
-- A 10k ohm resistor
-- A 4 pin (RJ11) or [6 pin (RJ12) cable](https://www.tinytronics.nl/shop/nl/kabels/adapters/rj12-naar-6-pins-dupont-jumper-adapter). Both cables work great, but a 6 pin cable can also power the ESP8266 on most DSMR5+ meters.
+- An ESP32 (I have used [ESP32-WROOM-32U](https://www.aliexpress.com/item/32864722159.html) because of external antenna - my meter is in metal case ~15m outside from the access point with thick wall)
+- IPEX-SMA cable of appropriate length to have antenna outside and put it through some hole in the meter metal case. For me 50cm length is more than enough. 
+- A 10k ohm resistor.
+- A simple LED for debugging and appropriate resistor for it for more information read [here](https://kitronik.co.uk/blogs/resources/which-resistor-should-i-use-with-my-led).
+- A 6 pin RJ12 cable created from UTP cable and soldered directly to the kit. 4 pin version should work too but in Lithuania it's hard to have external power for the device in the meter box.
 
 Setting up your Arduino IDE:
 - Ensure you have selected the right board (you might need to install your esp32board in the Arduino IDE).
-- I have tested this on the 80 MHz and 160 MHz CPU frequency mode, pick either one.
-- Using the Tools->Manage Libraries... install `PubSubClient`.
+- I have tested this on the 240 MHz and 160 MHz CPU frequency mode, pick either one.
+- Using the Tools->Manage Libraries... install `PubSubClient`, `ArduinoJson` and `tiny-collections`. For email debugging install `EmailSender` library.
 - In the file `Settings.h` change all values accordingly
 - Write to your device via USB the first time, you can do it OTA all times thereafter.
 
 ### Circuit diagram
-_Note: I have only tested this on the `ISKRA AM550`._
-I have used the RX02 pin on the ESP32 so u can still use the USB port for debugging you ESP32.
-Connect the ESP32 to an RJ11 cable/connector following the diagram.
+I have used the RX02 pin on the ESP32 to still use the USB port on devkit for debugging your ESP32. You could use any other pin however if you use standard RX and try debugging using USB, conflicts will happen. 
+Connect the ESP32 to an RJ12 cable/connector following the diagram.
 
-| P1 pin   | ESP32 Pin |
-| ----     | ---- |
-| 2 - RTS  | 3.3v |
-| 3 - GND  | GND  |
-| 4 -      |      |
-| 5 - RXD (data) | RX02 (gpio16) |
-
-On most models a 10K resistor should be used between the ESP's 3.3v and the p1's DATA (RXD) pin. Many howto's mention RTS requires 5V (VIN) to activate the P1 port, but for me 3V3 suffices.
-
-<details><summary>Optional: Powering the ESP8266 using your DSMR5+ meter</summary>
-<p>
-When using a 6 pin cable you can use the power source provided by the meter.
-  
 | P1 pin   | ESP32 Pin |
 | ----     | ---- |
 | 1 - 5v out | 5v or Vin |
@@ -62,61 +38,116 @@ When using a 6 pin cable you can use the power source provided by the meter.
 | 5 - RXD (data) | RX02 (gpio16) |
 | 6 - GND  | GND  |
 
+On most models a 10K resistor should be used between the ESP's 3.3v and the P1's DATA (RXD) pin. Many howto's mention RTS requires 5V (VIN) to activate the P1 port, but for me 3V3 suffices.
+
+<details><summary>Optional: Simpler 4 pin cable without power from your DSMR5+ meter</summary>
+<p>
+If you have how to power ESP32, a 4 pin cable is OK.
+
+| P1 pin   | ESP32 Pin |
+| ----     | ---- |
+| 2 - RTS  | 3.3v |
+| 3 - GND  | GND  |
+| 4 -      |      |
+| 5 - RXD (data) | RX02 (gpio16) |
+  
 </p>
 </details>
 
 ### Data Sent
 
-All metrics are send to their own MQTT topic.
-The software generates all the topic through the Serial monitor when starting up
-Example topics are:
+All metrics are send to their own MQTT topic. The software outputs all the topics through the Serial monitor when starting up
+Example:
 
 ```
-sensors/power/p1meter/consumption_low_tarif
-sensors/power/p1meter/consumption_high_tarif
-sensors/power/p1meter/actual_received
-sensors/power/p1meter/instant_power_usage_l1
-sensors/power/p1meter/instant_power_usage_l2
-sensors/power/p1meter/instant_power_usage_l3
-sensors/power/p1meter/instant_power_current_l1
-sensors/power/p1meter/instant_power_current_l2
-sensors/power/p1meter/instant_power_current_l3
-sensors/power/p1meter/instant_voltage_l1
-sensors/power/p1meter/instant_voltage_l2
-sensors/power/p1meter/instant_voltage_l3
-sensors/power/p1meter/actual_tarif_group
-sensors/power/p1meter/short_power_outages
-sensors/power/p1meter/long_power_outages
-sensors/power/p1meter/short_power_drops
-sensors/power/p1meter/short_power_peaks
+p1_meter/sensor/active_energy_import
+p1_meter/sensor/clock
+p1_meter/sensor/reactive_energy_import
+p1_meter/sensor/reactive_energy_export
+p1_meter/sensor/active_energy_import_rate_1
+p1_meter/sensor/active_energy_import_rate_2
+p1_meter/sensor/active_energy_export_rate_1
+p1_meter/sensor/active_energy_export_rate_2
+p1_meter/sensor/reactive_energy_rate_1
+p1_meter/sensor/reactive_energy_rate_2
+p1_meter/sensor/reactive_energy_minusr_rate_1
+p1_meter/sensor/reactive_energy_minusr_rate_2
+p1_meter/sensor/instantaneous_voltage_l1
+p1_meter/sensor/average_voltage_l1
+p1_meter/sensor/instantaneous_current_l1
+p1_meter/sensor/sliding_average_current_l1
+p1_meter/sensor/instantaneous_voltage_l2
+p1_meter/sensor/average_voltage_l2
+p1_meter/sensor/instantaneous_current_l2
+p1_meter/sensor/sliding_average_current_l2
+p1_meter/sensor/instantaneous_voltage_l3
+p1_meter/sensor/average_voltage_l3
+p1_meter/sensor/instantaneous_current_l3
+p1_meter/sensor/sliding_average_current_l3
+p1_meter/sensor/instantaneous_voltage
+p1_meter/sensor/instantaneous_current
+p1_meter/sensor/instantaneous_current_in_neutral
+p1_meter/sensor/instantaneous_current_sum_over_all_phases
+p1_meter/sensor/instantaneous_net_frequency_any_phase
+p1_meter/sensor/instantaneous_active_power
+p1_meter/sensor/instantaneous_active_import_power_in_phase_l1
+p1_meter/sensor/instantaneous_active_import_power_in_phase_l2
+p1_meter/sensor/instantaneous_active_import_power_in_phase_l3
+p1_meter/sensor/instantaneous_active_export_power_in_phase_l1
+p1_meter/sensor/instantaneous_active_export_power_in_phase_l2
+p1_meter/sensor/instantaneous_active_export_power_in_phase_l3
+p1_meter/sensor/instantaneous_reactive_import_power_in_phase_l1
+p1_meter/sensor/instantaneous_reactive_import_power_in_phase_l2
+p1_meter/sensor/instantaneous_reactive_import_power_in_phase_l3
+p1_meter/sensor/instantaneous_reactive_export_power_in_phase_l1
+p1_meter/sensor/instantaneous_reactive_export_power_in_phase_l2
+p1_meter/sensor/instantaneous_reactive_export_power_in_phase_l3
+p1_meter/sensor/instantaneous_apparent_import_power
+p1_meter/sensor/instantaneous_apparent_import_power_in_phase_l1
+p1_meter/sensor/instantaneous_apparent_import_power_in_phase_l2
+p1_meter/sensor/instantaneous_apparent_import_power_in_phase_l3
+p1_meter/sensor/instantaneous_apparent_export_power
+p1_meter/sensor/instantaneous_apparent_export_power_in_phase_l1
+p1_meter/sensor/instantaneous_apparent_export_power_in_phase_l2
+p1_meter/sensor/instantaneous_apparent_export_power_in_phase_l3
+p1_meter/sensor/average_import_power
+p1_meter/sensor/average_net_power
+p1_meter/sensor/average_total_power
+p1_meter/sensor/instantaneous_power_factor
+p1_meter/sensor/instantaneous_power_factor_in_phase_l1
+p1_meter/sensor/instantaneous_power_factor_in_phase_l2
+p1_meter/sensor/instantaneous_power_factor_in_phase_l3
+p1_meter/sensor/minimum_power_factor
+p1_meter/sensor/demand_register_1_active_energy_import
+p1_meter/sensor/demand_register_2_active_energy_export
+p1_meter/sensor/demand_register_3_reactive_energy_import
+p1_meter/sensor/demand_register_4_reactive_energy_export
+p1_meter/sensor/demand_register_5_apparent_energy_import
+p1_meter/sensor/demand_register_6_apparent_energy_export
+p1_meter/sensor/last_average_demand_register_1_active_energy_import
+p1_meter/sensor/last_average_demand_register_2_active_energy_export
+p1_meter/sensor/last_average_demand_register_3_reactive_energy_import
+p1_meter/sensor/last_average_demand_register_4_reactive_energy_export
+p1_meter/sensor/last_average_demand_register_5_apparent_energy_import
+p1_meter/sensor/last_average_demand_register_6_apparent_energy_export
+p1_meter/sensor/number_of_power_failures_in_any_phase
+p1_meter/sensor/duration_of_last_voltage_sag_in_phase_l1
+p1_meter/sensor/duration_of_last_voltage_sag_in_phase_l2
+p1_meter/sensor/duration_of_last_voltage_sag_in_phase_l3
+p1_meter/sensor/magnitude_of_last_voltage_sag_in_phase_l1
+p1_meter/sensor/magnitude_of_last_voltage_sag_in_phase_l2
+p1_meter/sensor/magnitude_of_last_voltage_sag_in_phase_l3
+p1_meter/sensor/duration_of_last_voltage_swell_in_phase_l1
+p1_meter/sensor/duration_of_last_voltage_swell_in_phase_l2
+p1_meter/sensor/duration_of_last_voltage_swell_in_phase_l3
+p1_meter/sensor/magnitude_of_last_voltage_swell_in_phase_l1
+p1_meter/sensor/magnitude_of_last_voltage_swell_in_phase_l2
+p1_meter/sensor/magnitude_of_last_voltage_swell_in_phase_l3
 ```
 
-But all the metrics you need are easily added using the `setupDataReadout()` method. With the DEBUG mode it is easy to see all the topics you add/create by the serial monitor. To see what your telegram is outputting in the Netherlands see: https://www.netbeheernederland.nl/_upload/Files/Slimme_meter_15_a727fce1f1.pdf for the dutch codes pag. 19 -23
-
+All the metrics you need are easily added in `DSMR_MAP` variable in `dsmr_map.h` file. With the DEBUG mode it's possible to see all the topics you add/create in the serial monitor. Also, it's possible to configure topic structure by changing `MQTT_ROOT_TOPIC` value in `settings.h` file.
+There is additional TEST mode to try your setup with test telegram and actual MQTT message send while your adapter is not connected to P1 port. 
+EMAIL_DEBUGGING is used to send debug messages to any email, e.g. GMail address. This is might be usefull to trace what's going on when device is connected to P1 port and actual debugging using USB port is impossible.
 ### Home Assistant Configuration
 
 Use this [example](https://raw.githubusercontent.com/daniel-jong/esp8266_p1meter/master/assets/p1_sensors.yaml) for home assistant's `sensor.yaml`
-
-## Known limitations and issues
-My ESP32 can use the 5v from the `ISKRA AM550` but you first need to power it on via USB else it will bootloop. After it's booted and connected with the 5v port on the P1 connection you can unplug the ESP32 and it will stay on.
-
-## Thanks to
-I want to Thank [JHockx](https://github.com/jhockx/esp8266_p1meter) because he told me he was working on a project reading out his P1 Meter. It sounded like a fun project but I had somewhat different hardware laying around so I started working with that. 
-
-I also want to thank all the people he mentions in his project: 
-- https://github.com/fliphess/esp8266_p1meter
-- https://github.com/jantenhove/P1-Meter-ESP8266
-- https://github.com/neographikal/P1-Meter-ESP8266-MQTT
-- http://gejanssen.com/howto/Slimme-meter-uitlezen/
-- https://github.com/rroethof/p1reader/
-- http://romix.macuser.nl/software.html
-- http://blog.regout.info/category/slimmeter/
-- http://domoticx.com/p1-poort-slimme-meter-hardware/
-
-In addition, I'd like thank and refer to the following projects which served as a source of information:
-- [https://github.com/daniel-jong/esp8266_p1meter](https://github.com/daniel-jong/esp8266_p1meter)
-- [https://github.com/WhoSayIn/esp8266_dsmr2mqtt](https://github.com/WhoSayIn/esp8266_dsmr2mqtt)
-- [https://github.com/jhockx/esp8266_p1meter](https://github.com/jhockx/esp8266_p1meter)
-
-Other sources:
-- [DSMR 5.0 documentation](https://www.netbeheernederland.nl/_upload/Files/Slimme_meter_15_a727fce1f1.pdf)

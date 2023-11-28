@@ -36,3 +36,7 @@
 
 # Pycharm
 .idea
+
+*.h.lv
+
+settings.h
