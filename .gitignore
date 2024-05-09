@@ -40,7 +40,9 @@
 *.h.lv
 
 settings.h
+upload_settings.h
 
 #platformio
 .pio
 
+upload_settings.ini
