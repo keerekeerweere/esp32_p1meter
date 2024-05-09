@@ -41,7 +41,6 @@
 
 settings.h
 
+#platformio
 .pio
-.idea
-.vscode
 
