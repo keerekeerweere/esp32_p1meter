@@ -40,3 +40,8 @@
 *.h.lv
 
 settings.h
+
+.pio
+.idea
+.vscode
+

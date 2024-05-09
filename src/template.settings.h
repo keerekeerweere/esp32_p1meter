@@ -25,8 +25,8 @@
 #define OTA_PASSWORD_HASH "MD5 hash of my password"
 
 #define BAUD_RATE 115200
-#define RXD2 16
-#define TXD2 17
+#define RXD2 1
+#define TXD2 3
 
 //default
 //#define LED_PIN LED_BUILTIN

@@ -2,20 +2,18 @@
 Software for the ESP32 (uPesy ESP32 Wroom Devkit) that decodes and sends P1 smart meter (DSMR) data to a MQTT broker, with the possibility for Over The Air (OTA) firmware updates.
 
 ## About this fork
+This fork is based on work from [Brunas](https://github.com/Brunas/esp32_p1meter).
 This fork is based on work from [bartwo](https://github.com/bartwo/esp32_p1meter).
 
 How is this fork different from base:
+- use platformio to configure the build and board
 - Make MQTT sensors configured using JSON map with all available data and get MQTT sensors created dynamically.
-- Add email sending for debugging purposes.
-- Added support for string readings not just numbers.
-- Even more refactored code for readability.
 
 ![P1 plugged into meter with external antenna](assets/3.jpg)
 
 ## Setup
 This setup requires:
-- An ESP32 (I have used [ESP32-WROOM-32U](https://www.aliexpress.com/item/32864722159.html) because of external antenna - my meter is in metal case ~15m outside from the access point with thick wall)
-- IPEX-SMA cable of appropriate length to have antenna outside and put it through some hole in the meter metal case. For me 50cm length is more than enough. 
+- An ESP32 : I have used [wemos_d1_mini32](https://nl.aliexpress.com/item/1005006031354162.html) 
 - A 10k ohm resistor.
 - A simple LED for debugging and appropriate resistor for it for more information read [here](https://kitronik.co.uk/blogs/resources/which-resistor-should-i-use-with-my-led).
 - A 6 pin RJ11 cable created from UTP cable and soldered directly to the kit. 4 pin version should work too but in Lithuania it's hard to have external power for the device in the meter box.
@@ -29,7 +27,7 @@ Setting up your Arduino IDE:
 - Write to your device via USB the first time, you can do it OTA all times thereafter.
 
 ### Circuit diagram
-I have used the RX02 pin on the ESP32 to still use the USB port on devkit for debugging your ESP32. You could use any other pin however if you use standard RX and try debugging using USB, conflicts will happen.
+I have used the UART0 : RXD pin on the ESP32 that also uses the USB port on ESP32. There is a risk of conflicts
 Connect the ESP32 to an RJ12 cable/connector following the diagram.
 
 | P1 pin   | ESP32 Pin |
@@ -38,7 +36,7 @@ Connect the ESP32 to an RJ12 cable/connector following the diagram.
 | 2 - RTS  | 3.3v |
 | 3 - GND  | GND  |
 | 4 -      |      |
-| 5 - RXD (data) | RX02 (gpio16) |
+| 5 - RXD (data) | UART0 : RXD (gpio01) |
 | 6 - GND  | GND  |
 
 ![Wiring ESP32 is instead of ESP8286](assets/esp8266_p1meter_bb_PoweredByMeter.png)
@@ -58,7 +56,7 @@ If you have how to power ESP32, a 4 pin cable is OK.
 | 2 - RTS  | 3.3v |
 | 3 - GND  | GND  |
 | 4 -      |      |
-| 5 - RXD (data) | RX02 (gpio16) |
+| 5 - RXD (data) | UART0 : RXD (gpio01) |
 
 ![Wiring ESP32 is instead of ESP8286](assets/esp8266_p1meter_bb.png)
 >**_NOTE:_**  The diagram says `D1 mini` but all of this can be applied to ESP32 too.
