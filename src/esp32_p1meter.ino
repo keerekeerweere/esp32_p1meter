@@ -5,26 +5,38 @@
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
 #include <tiny-collections.h>
-
+#include <logging.hpp>
+#include <udp-appender.hpp>
+#include "ESP32Loggable.h"
 #include "settings.h"
 #include "dsmr_map.h"
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+ESP32Loggable logger(HOSTNAME);
 
 #ifdef EMAIL_DEBUGGING
 #include <EMailSender.h>
 EMailSender emailSend(EMAIL_ADDRESS, EMAIL_PASSWORD);
 #endif
 
+#ifdef SYSLOG_DEBUGGING
+  UDPAppender udpappender(SYSLOG_HOST, SYSLOG_PORT);
+#endif
+
+
 /***********************************
             Main Setup
  ***********************************/
 void setup() {
+
+
+
   // Initialize pins and blink once for setup start
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   blinkLed(1, 500);
+
 
   // Force CPU frequency if constant is specified
   if (CPU_FREQ > 0) {
@@ -33,10 +45,13 @@ void setup() {
 
   Serial.begin(BAUD_RATE);
 
+  Logging::setLevel(esp32m::Debug);
+
 #ifdef DEBUG
   // Blinking 2 times long to indicate DEBUG mode
   debug("Booting - DEBUG mode on");
   blinkLed(2, 2000);
+  Logging::addAppender(&ETSAppender::instance());
 #endif
 
   makeSureWiFiConnected(true);
@@ -44,17 +59,27 @@ void setup() {
   MDNS.begin(String(HOSTNAME).c_str());
   delay(1000);
 
+#ifdef SYSLOG_DEBUGGING
+  //setup logging
+  udpappender.setMode(UDPAppender::Format::Syslog);
+  Logging::addAppender(&udpappender);
+
+#endif
+  logger.warn("p1meter v1 Build 2w d (%s) t (%s) "  ,__DATE__ , __TIME__) ; 
+
   setupDataReadout();
   setupOTA();
 
   mqttClient.setServer(MQTT_HOST, atoi(MQTT_PORT));
   makeSureMqttConnected();
 
+
 #ifndef TEST
   Serial2.begin(BAUD_RATE, SERIAL_8N1, RXD2, TXD2, true);
 #endif
 
   debug("System initialised successfully!");
+  logger.debug("System initialised successfully! ") ; 
 
   blinkLed(5, 500);  // Blink 5 times to indicate end of setup
 }
@@ -87,6 +112,7 @@ void loop() {
     if (readP1Serial()) {
 #endif
       LAST_UPDATE_SENT = millis();
+      logger.debug("sending data to broker  %i", telegramObjects.size()) ; 
       sendDataToBroker();
     }
   }
@@ -116,17 +142,17 @@ void setupOTA() {
       Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
     })
     .onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
+      logger.error("Error[%u]: ", error);
       if (error == OTA_AUTH_ERROR)
-        Serial.println("Auth Failed");
+        logger.error("Auth Failed");
       else if (error == OTA_BEGIN_ERROR)
-        Serial.println("Begin Failed");
+        logger.error("Begin Failed");
       else if (error == OTA_CONNECT_ERROR)
-        Serial.println("Connect Failed");
+        logger.error("Connect Failed");
       else if (error == OTA_RECEIVE_ERROR)
-        Serial.println("Receive Failed");
+        logger.error("Receive Failed");
       else if (error == OTA_END_ERROR)
-        Serial.println("End Failed");
+        logger.error("End Failed");
     });
   ArduinoOTA.setHostname(String(HOSTNAME).c_str());
   ArduinoOTA.setPasswordHash(String(OTA_PASSWORD_HASH).c_str());

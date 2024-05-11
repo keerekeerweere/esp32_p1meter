@@ -119,7 +119,8 @@ bool decodeTelegram(int len) {
 
 bool readP1Serial() {
   if (Serial2.available()) {
-    debug("Serial2 is available. Memset telegram.");
+    //debug("Serial2 is available. Memset telegram.");
+    logger.debug("Serial2 is available. Memset telegram.");
     memset(telegram, 0, sizeof(telegram));
     while (Serial2.available()) {
       // Reads the telegram until it finds a return character

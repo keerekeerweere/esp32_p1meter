@@ -13,7 +13,7 @@ void makeSureMqttConnected() {
       mqttClient.publish(String(MQTT_STATUS_TOPIC).c_str(), message);
     }
     else {
-      debug("MQTT Connection Failed! Retries left: " + String(_retries));
+      logger.debug("MQTT Connection Failed! Retries left: %u", _retries);
       _retries--;
       delay(5000);
     }
@@ -21,7 +21,7 @@ void makeSureMqttConnected() {
 
   if (!mqttClient.connected()) {
     blinkLed(20, 200); // Blink moderately fast to indicate failed connection
-    debug ("Connection to MQTT Failed! Rebooting...");
+    logger.error("Connection to MQTT Failed! Rebooting...");
     ESP.restart();
   }
 }
@@ -37,7 +37,7 @@ void sendMetric(String name, String metric) {
 void sendDataToBroker() {
   for (int i = 0; i < telegramObjects.size(); i++) {
     if (telegramObjects[i].sendData) {
-      debug("Sending: " + telegramObjects[i].name + " value: " + telegramObjects[i].value);
+      logger.debug("Sending: %s value: %s" , telegramObjects[i].name.c_str() , telegramObjects[i].value.c_str());
       sendMetric(telegramObjects[i].name, telegramObjects[i].value);
       telegramObjects[i].sendData = false;
     }
